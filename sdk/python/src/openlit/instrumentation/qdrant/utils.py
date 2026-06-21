@@ -32,10 +32,10 @@ DB_OPERATION_MAP = {
     "qdrant.search": SemanticConvention.DB_OPERATION_GET,
     "qdrant.search_groups": SemanticConvention.DB_OPERATION_GET,
     "qdrant.recommend": SemanticConvention.DB_OPERATION_GET,
-    # New methods (v1.13.0+)
-    "qdrant.query_points": SemanticConvention.DB_OPERATION_QUERY,
-    "qdrant.query_batch_points": SemanticConvention.DB_OPERATION_QUERY,
-    "qdrant.query_points_groups": SemanticConvention.DB_OPERATION_QUERY,
+    # New methods (v1.13.0+) — use GET since semcov has no dedicated QUERY constant
+    "qdrant.query_points": SemanticConvention.DB_OPERATION_GET,
+    "qdrant.query_batch_points": SemanticConvention.DB_OPERATION_GET,
+    "qdrant.query_points_groups": SemanticConvention.DB_OPERATION_GET,
     "qdrant.create_payload_index": SemanticConvention.DB_OPERATION_CREATE_INDEX,
 }
 
@@ -315,11 +315,7 @@ def common_qdrant_logic(
                 f"{scope._db_operation} {collection_name} filter={scroll_filter}",
             )
 
-    # Handle QUERY operations (vector similarity search)
-    elif scope._db_operation == SemanticConvention.DB_OPERATION_QUERY:
-        collection_name = scope._kwargs.get("collection_name", "unknown")
-
-        if endpoint == "qdrant.query_points":
+        elif endpoint == "qdrant.query_points":
             query = scope._kwargs.get("query", {})
             limit = scope._kwargs.get("limit", 10)
 

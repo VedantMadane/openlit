@@ -10,7 +10,7 @@ from wrapt import wrap_function_wrapper
 from openlit.instrumentation.qdrant.qdrant import general_wrap
 from openlit.instrumentation.qdrant.async_qdrant import async_general_wrap
 
-_instruments = ("qdrant-client >= 1.16.0",)
+_instruments = ("qdrant-client >= 1.9.0",)
 
 # Operations to wrap for both sync and async clients
 # Note: Some methods are version-dependent and will be filtered at runtime
