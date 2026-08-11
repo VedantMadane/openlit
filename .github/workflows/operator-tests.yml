@@ -5,10 +5,12 @@ on:
     branches: [ main, operator ]
     paths:
       - 'operator/**'
+      - '.github/workflows/operator-tests.yml'
   pull_request:
     branches: [ main, operator ]
     paths:
       - 'operator/**'
+      - '.github/workflows/operator-tests.yml'
 
 env:
   GO_VERSION: "1.24"
@@ -130,8 +132,14 @@ jobs:
     - name: Import images to k3d cluster
       run: |
         echo "📥 Importing images to k3d cluster..."
+        # Webhook getProviderImage() hardcodes :latest for openlit provider images.
+        # Tag our locally-built test images as :latest so injection can pull them in-cluster.
+        docker tag ghcr.io/openlit/openlit-operator:test ghcr.io/openlit/openlit-operator:latest
+        docker tag ghcr.io/openlit/openlit-ai-instrumentation:test ghcr.io/openlit/openlit-ai-instrumentation:latest
         k3d image import ghcr.io/openlit/openlit-operator:test -c operator-test
+        k3d image import ghcr.io/openlit/openlit-operator:latest -c operator-test
         k3d image import ghcr.io/openlit/openlit-ai-instrumentation:test -c operator-test
+        k3d image import ghcr.io/openlit/openlit-ai-instrumentation:latest -c operator-test
         
     - name: Install OpenLIT Backend
       run: |
@@ -163,6 +171,14 @@ jobs:
         echo "⏳ Waiting for operator to be ready..."
         kubectl wait --for=condition=available deployment/openlit-operator -n openlit --timeout=180s
         kubectl get pods -n openlit -l app=openlit-operator
+
+        # Operator registers the mutating webhook at runtime; wait until it exists
+        # so test pods are not created before admission injection is available.
+        echo "⏳ Waiting for mutating webhook configuration..."
+        timeout 120 bash -c 'until kubectl get mutatingwebhookconfiguration openlit-mutating-webhook-configuration >/dev/null 2>&1; do sleep 2; done'
+        kubectl get mutatingwebhookconfiguration openlit-mutating-webhook-configuration
+        # Brief settle time for API server webhook wiring
+        sleep 5
         
     - name: Check operator health
       run: |
@@ -186,29 +202,72 @@ jobs:
         # Create test AutoInstrumentation resource from example file
         kubectl apply -f operator/examples/complete-openlit-instrumentation.yaml
         
-        # Verify resources were created
+        # Verify resources were created and become Ready
         kubectl get autoinstrumentations.openlit.io -o yaml
+        timeout 60 bash -c 'until kubectl get autoinstrumentations.openlit.io openlit-instrumentation -o jsonpath="{.status.conditions[?(@.type==\"Ready\")].status}" 2>/dev/null | grep -q True; do sleep 2; done' || true
         echo "✅ AutoInstrumentation resources created successfully"
         
     - name: Deploy test application with custom packages
       run: |
         echo "🚀 Deploying test application with custom packages..."
         kubectl apply -f operator/examples/test-application-deployment.yaml
+        kubectl get deploy,cm -l app=openlit-test-app 2>/dev/null || true
+        kubectl get deploy openlit-test-app configmap/test-application-script
         
-        # Wait for pod to be created (may take time due to instrumentation injection)
+        # IMPORTANT: `kubectl get pod -l ...` exits 0 even when items is empty.
+        # Wait until at least one pod object exists (webhook may delay creation slightly).
         echo "⏳ Waiting for test application pod..."
-        timeout 300 bash -c 'until kubectl get pod -l app=openlit-test-app 2>/dev/null; do sleep 5; done'
+        timeout 300 bash -c '
+          until [ "$(kubectl get pods -l app=openlit-test-app -o jsonpath="{.items[*].metadata.name}" 2>/dev/null | wc -w)" -ge 1 ]; do
+            echo "  still waiting for pods with label app=openlit-test-app..."
+            kubectl get deploy openlit-test-app 2>/dev/null || true
+            kubectl get events --field-selector involvedObject.name=openlit-test-app --sort-by=.metadata.creationTimestamp 2>/dev/null | tail -5 || true
+            sleep 3
+          done
+        '
+        kubectl get pods -l app=openlit-test-app -o wide
         
     - name: Verify instrumentation injection
       run: |
+        set -euo pipefail
         echo "🔍 Verifying instrumentation injection..."
+
+        dump_debug() {
+          echo "=== DEBUG: pods in all namespaces ==="
+          kubectl get pods -A -o wide || true
+          echo "=== DEBUG: test app pods ==="
+          kubectl get pods -l app=openlit-test-app -o wide || true
+          kubectl get pods -l app=openlit-test-app -o yaml || true
+          echo "=== DEBUG: describe test app ==="
+          kubectl describe pod -l app=openlit-test-app || true
+          echo "=== DEBUG: deployment/replicaset ==="
+          kubectl get deploy,rs -l app=openlit-test-app -o wide || true
+          kubectl describe deploy openlit-test-app || true
+          echo "=== DEBUG: events ==="
+          kubectl get events --sort-by=.metadata.creationTimestamp | tail -80 || true
+          echo "=== DEBUG: operator logs ==="
+          kubectl logs -n openlit -l app=openlit-operator --tail=150 || true
+          echo "=== DEBUG: mutating webhooks ==="
+          kubectl get mutatingwebhookconfiguration -o yaml || true
+          echo "=== DEBUG: autoinstrumentations ==="
+          kubectl get autoinstrumentations.openlit.io -o yaml || true
+        }
+        trap dump_debug ERR
+
         TEST_POD=$(kubectl get pods -l app=openlit-test-app -o jsonpath='{.items[0].metadata.name}')
+        if [ -z "${TEST_POD}" ]; then
+          echo "❌ No pod found with label app=openlit-test-app"
+          exit 1
+        fi
         echo "Test application pod: $TEST_POD"
-        
-        # Check that pod has init container (sign of instrumentation)
-        if kubectl describe pod $TEST_POD | grep -q "Init Containers:"; then
+
+        # Prefer structured check on pod spec (set at admission time)
+        INIT_CONTAINERS=$(kubectl get pod "$TEST_POD" -o jsonpath='{.spec.initContainers[*].name}' || true)
+        if [ -n "${INIT_CONTAINERS}" ]; then
           echo "✅ Init container detected - instrumentation injection successful"
-          kubectl describe pod $TEST_POD | grep -A 5 "Init Containers:"
+          echo "Init containers: ${INIT_CONTAINERS}"
+          kubectl get pod "$TEST_POD" -o jsonpath='{range .spec.initContainers[*]}{.name}{"\t"}{.image}{"\n"}{end}'
+          kubectl describe pod "$TEST_POD" | grep -A 10 "Init Containers:" || true
         else
           echo "❌ No init container found - instrumentation injection failed"
           exit 1
@@ -221,6 +280,7 @@ jobs:
         
         echo "=== Cluster Overview ==="
         kubectl get all --all-namespaces
+        kubectl get pods -A -o wide || true
         
         echo "=== Operator Status ==="
         kubectl get pods -n openlit -l app=openlit-operator || true
@@ -231,9 +291,13 @@ jobs:
         echo "=== Test Application Status ==="
         kubectl get pods -l app=openlit-test-app || true
         kubectl describe pod -l app=openlit-test-app || true
+        kubectl get deploy,rs -l app=openlit-test-app -o wide || true
         
         echo "=== AutoInstrumentation Resources ==="
         kubectl get autoinstrumentations.openlit.io -o yaml || true
+
+        echo "=== MutatingWebhookConfigurations ==="
+        kubectl get mutatingwebhookconfiguration -o yaml || true
         
         echo "=== Events ==="
         kubectl get events --sort-by=.metadata.creationTimestamp || true
