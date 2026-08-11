@@ -12,8 +12,15 @@ Note: Ensure the environment is properly configured for Assembly AI access and O
 prior to running these tests.
 """
 
+import os
+import pytest
 import assemblyai as aai
 import openlit
+
+pytestmark = pytest.mark.skipif(
+    not os.getenv("ASSEMBLYAI_API_KEY"),
+    reason="ASSEMBLYAI_API_KEY not available",
+)
 
 # Initialize environment and application name for OpenLIT monitoring
 openlit.init(

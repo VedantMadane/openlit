@@ -12,8 +12,15 @@ Note: Ensure the environment is properly configured for Cohere access and OpenLI
 prior to running these tests.
 """
 
+import os
+import pytest
 import cohere
 import openlit
+
+pytestmark = pytest.mark.skipif(
+    not os.getenv("CO_API_KEY"),
+    reason="CO_API_KEY not available",
+)
 
 # Initialize synchronous Cohere client
 sync_client = cohere.Client()

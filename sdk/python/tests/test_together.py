@@ -11,9 +11,15 @@ Note: Ensure the environment is properly configured for Together access and Open
 prior to running these tests.
 """
 
+import os
 import pytest
 from together import Together, AsyncTogether
 import openlit
+
+pytestmark = pytest.mark.skipif(
+    not os.getenv("TOGETHER_API_KEY"),
+    reason="TOGETHER_API_KEY not available",
+)
 
 # Initialize synchronous Together client
 sync_client = Together()
