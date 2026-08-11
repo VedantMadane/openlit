@@ -211,8 +211,8 @@ jobs:
       run: |
         echo "🚀 Deploying test application with custom packages..."
         kubectl apply -f operator/examples/test-application-deployment.yaml
-        kubectl get deploy,cm -l app=openlit-test-app 2>/dev/null || true
-        kubectl get deploy openlit-test-app configmap/test-application-script
+        kubectl get deploy openlit-test-app
+        kubectl get configmap test-application-script
         
         # IMPORTANT: `kubectl get pod -l ...` exits 0 even when items is empty.
         # Wait until at least one pod object exists (webhook may delay creation slightly).
