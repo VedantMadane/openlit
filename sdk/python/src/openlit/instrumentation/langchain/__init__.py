@@ -1561,9 +1561,9 @@ class LangChainInstrumentor(BaseInstrumentor):
 
         try:
             wrap_function_wrapper(
-                module="langchain_core.callbacks.manager",
-                name="BaseCallbackManager.__init__",
-                wrapper=_BaseCallbackManagerInitWrapper(handler_instance),
+                "langchain_core.callbacks.manager",
+                "BaseCallbackManager.__init__",
+                _BaseCallbackManagerInitWrapper(handler_instance),
             )
             logger.debug("Successfully wrapped BaseCallbackManager.__init__")
         except Exception as e:
