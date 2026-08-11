@@ -4,7 +4,12 @@ Module for monitoring OpenAI API calls.
 
 import time
 from opentelemetry.trace import SpanKind
-from openlit.__helpers import handle_exception, set_server_address_and_port
+from openlit.__helpers import (
+    handle_exception,
+    record_completion_metrics,
+    record_embedding_metrics,
+    set_server_address_and_port,
+)
 from openlit.instrumentation.openai.utils import (
     process_chat_chunk,
     process_response_chunk,
@@ -28,6 +33,7 @@ def async_chat_completions(
     capture_message_content,
     metrics,
     disable_metrics,
+    event_provider=None,
 ):
     """
     Generates a telemetry wrapper for OpenAI async chat completions.
@@ -46,6 +52,7 @@ def async_chat_completions(
             kwargs,
             server_address,
             server_port,
+            event_provider=None,
         ):
             self.__wrapped__ = wrapped
             self._span = span
@@ -65,6 +72,7 @@ def async_chat_completions(
             self._tbt = 0
             self._server_address = server_address
             self._server_port = server_port
+            self._event_provider = event_provider
 
         async def __aenter__(self):
             await self.__wrapped__.__aenter__()
@@ -97,6 +105,7 @@ def async_chat_completions(
                             capture_message_content=capture_message_content,
                             disable_metrics=disable_metrics,
                             version=version,
+                            event_provider=self._event_provider,
                         )
                 except Exception as e:
                     handle_exception(self._span, e)
@@ -120,7 +129,13 @@ def async_chat_completions(
             span = tracer.start_span(span_name, kind=SpanKind.CLIENT)
 
             return TracedAsyncStream(
-                awaited_wrapped, span, span_name, kwargs, server_address, server_port
+                awaited_wrapped,
+                span,
+                span_name,
+                kwargs,
+                server_address,
+                server_port,
+                event_provider,
             )
 
         else:
@@ -143,11 +158,32 @@ def async_chat_completions(
                         capture_message_content=capture_message_content,
                         disable_metrics=disable_metrics,
                         version=version,
+                        event_provider=event_provider,
                         **kwargs,
                     )
 
                 except Exception as e:
                     handle_exception(span, e)
+                    if not disable_metrics and metrics:
+                        record_completion_metrics(
+                            metrics,
+                            SemanticConvention.GEN_AI_OPERATION_TYPE_CHAT,
+                            SemanticConvention.GEN_AI_SYSTEM_OPENAI,
+                            server_address,
+                            server_port,
+                            request_model,
+                            kwargs.get("model", "unknown"),
+                            environment,
+                            application_name,
+                            start_time,
+                            time.time(),
+                            0,
+                            0,
+                            0,
+                            None,
+                            None,
+                            error_type=type(e).__name__ or "_OTHER",
+                        )
 
                 return response
 
@@ -163,6 +199,7 @@ def async_responses(
     capture_message_content,
     metrics,
     disable_metrics,
+    event_provider=None,
 ):
     """
     Generates a telemetry wrapper for OpenAI async responses API.
@@ -181,6 +218,7 @@ def async_responses(
             kwargs,
             server_address,
             server_port,
+            event_provider=None,
         ):
             self.__wrapped__ = wrapped
             self._span = span
@@ -204,6 +242,7 @@ def async_responses(
             self._tbt = 0
             self._server_address = server_address
             self._server_port = server_port
+            self._event_provider = event_provider
 
         async def __aenter__(self):
             await self.__wrapped__.__aenter__()
@@ -236,6 +275,7 @@ def async_responses(
                             capture_message_content=capture_message_content,
                             disable_metrics=disable_metrics,
                             version=version,
+                            event_provider=self._event_provider,
                         )
                 except Exception as e:
                     handle_exception(self._span, e)
@@ -259,7 +299,13 @@ def async_responses(
             span = tracer.start_span(span_name, kind=SpanKind.CLIENT)
 
             return TracedAsyncStream(
-                awaited_wrapped, span, span_name, kwargs, server_address, server_port
+                awaited_wrapped,
+                span,
+                span_name,
+                kwargs,
+                server_address,
+                server_port,
+                event_provider,
             )
 
         else:
@@ -282,11 +328,32 @@ def async_responses(
                         capture_message_content=capture_message_content,
                         disable_metrics=disable_metrics,
                         version=version,
+                        event_provider=event_provider,
                         **kwargs,
                     )
 
                 except Exception as e:
                     handle_exception(span, e)
+                    if not disable_metrics and metrics:
+                        record_completion_metrics(
+                            metrics,
+                            SemanticConvention.GEN_AI_OPERATION_TYPE_CHAT,
+                            SemanticConvention.GEN_AI_SYSTEM_OPENAI,
+                            server_address,
+                            server_port,
+                            request_model,
+                            "unknown",
+                            environment,
+                            application_name,
+                            start_time,
+                            time.time(),
+                            0,
+                            0,
+                            0,
+                            None,
+                            None,
+                            error_type=type(e).__name__ or "_OTHER",
+                        )
 
                 return response
 
@@ -302,6 +369,7 @@ def async_chat_completions_parse(
     capture_message_content,
     metrics,
     disable_metrics,
+    event_provider=None,
 ):
     """
     Generates a telemetry wrapper for OpenAI async chat completions parse.
@@ -338,11 +406,32 @@ def async_chat_completions_parse(
                     capture_message_content=capture_message_content,
                     disable_metrics=disable_metrics,
                     version=version,
+                    event_provider=event_provider,
                     **kwargs,
                 )
 
             except Exception as e:
                 handle_exception(span, e)
+                if not disable_metrics and metrics:
+                    record_completion_metrics(
+                        metrics,
+                        SemanticConvention.GEN_AI_OPERATION_TYPE_CHAT,
+                        SemanticConvention.GEN_AI_SYSTEM_OPENAI,
+                        server_address,
+                        server_port,
+                        request_model,
+                        "unknown",
+                        environment,
+                        application_name,
+                        start_time,
+                        time.time(),
+                        0,
+                        0,
+                        0,
+                        None,
+                        None,
+                        error_type=type(e).__name__ or "_OTHER",
+                    )
 
             return response
 
@@ -358,6 +447,7 @@ def async_embedding(
     capture_message_content,
     metrics,
     disable_metrics,
+    event_provider=None,
 ):
     """
     Generates a telemetry wrapper for OpenAI async embeddings.
@@ -401,6 +491,23 @@ def async_embedding(
 
             except Exception as e:
                 handle_exception(span, e)
+                if not disable_metrics and metrics:
+                    record_embedding_metrics(
+                        metrics,
+                        SemanticConvention.GEN_AI_OPERATION_TYPE_EMBEDDING,
+                        SemanticConvention.GEN_AI_SYSTEM_OPENAI,
+                        server_address,
+                        server_port,
+                        request_model,
+                        "unknown",
+                        environment,
+                        application_name,
+                        start_time,
+                        time.time(),
+                        0,
+                        0,
+                        error_type=type(e).__name__ or "_OTHER",
+                    )
 
             return response
 
@@ -416,6 +523,7 @@ def async_image_generate(
     capture_message_content,
     metrics,
     disable_metrics,
+    event_provider=None,
 ):
     """
     Generates a telemetry wrapper for OpenAI async image generation.
@@ -459,6 +567,26 @@ def async_image_generate(
 
             except Exception as e:
                 handle_exception(span, e)
+                if not disable_metrics and metrics:
+                    record_completion_metrics(
+                        metrics,
+                        SemanticConvention.GEN_AI_OPERATION_TYPE_IMAGE,
+                        SemanticConvention.GEN_AI_SYSTEM_OPENAI,
+                        server_address,
+                        server_port,
+                        request_model,
+                        "unknown",
+                        environment,
+                        application_name,
+                        start_time,
+                        end_time,
+                        0,
+                        0,
+                        0,
+                        None,
+                        None,
+                        error_type=type(e).__name__ or "_OTHER",
+                    )
 
             return response
 
@@ -474,6 +602,7 @@ def async_image_variations(
     capture_message_content,
     metrics,
     disable_metrics,
+    event_provider=None,
 ):
     """
     Generates a telemetry wrapper for OpenAI async image variations.
@@ -517,6 +646,26 @@ def async_image_variations(
 
             except Exception as e:
                 handle_exception(span, e)
+                if not disable_metrics and metrics:
+                    record_completion_metrics(
+                        metrics,
+                        SemanticConvention.GEN_AI_OPERATION_TYPE_IMAGE,
+                        SemanticConvention.GEN_AI_SYSTEM_OPENAI,
+                        server_address,
+                        server_port,
+                        request_model,
+                        "unknown",
+                        environment,
+                        application_name,
+                        start_time,
+                        end_time,
+                        0,
+                        0,
+                        0,
+                        None,
+                        None,
+                        error_type=type(e).__name__ or "_OTHER",
+                    )
 
             return response
 
@@ -532,6 +681,7 @@ def async_audio_create(
     capture_message_content,
     metrics,
     disable_metrics,
+    event_provider=None,
 ):
     """
     Generates a telemetry wrapper for OpenAI async audio creation.
@@ -575,6 +725,26 @@ def async_audio_create(
 
             except Exception as e:
                 handle_exception(span, e)
+                if not disable_metrics and metrics:
+                    record_completion_metrics(
+                        metrics,
+                        SemanticConvention.GEN_AI_OPERATION_TYPE_AUDIO,
+                        SemanticConvention.GEN_AI_SYSTEM_OPENAI,
+                        server_address,
+                        server_port,
+                        request_model,
+                        "unknown",
+                        environment,
+                        application_name,
+                        start_time,
+                        end_time,
+                        0,
+                        0,
+                        0,
+                        None,
+                        None,
+                        error_type=type(e).__name__ or "_OTHER",
+                    )
 
             return response
 

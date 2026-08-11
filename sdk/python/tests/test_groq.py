@@ -17,11 +17,19 @@ import pytest
 from groq import Groq, AsyncGroq
 import openlit
 
+# Workflow secrets use GROQ_API_KEY; accept legacy GROQ_API_TOKEN as fallback
+_GROQ_API_KEY = os.getenv("GROQ_API_KEY") or os.getenv("GROQ_API_TOKEN")
+
+pytestmark = pytest.mark.skipif(
+    not _GROQ_API_KEY,
+    reason="GROQ_API_KEY / GROQ_API_TOKEN not available",
+)
+
 # Initialize synchronous Groq client
-sync_client = Groq(api_key=os.getenv("GROQ_API_TOKEN"))
+sync_client = Groq(api_key=_GROQ_API_KEY)
 
 # Initialize asynchronous Groq client
-async_client = AsyncGroq(api_key=os.getenv("GROQ_API_TOKEN"))
+async_client = AsyncGroq(api_key=_GROQ_API_KEY)
 
 # Initialize environment and application name for OpenLIT monitoring
 openlit.init(environment="openlit-testing", application_name="openlit-python-test")

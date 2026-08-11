@@ -14,13 +14,29 @@ prior to running these tests.
 
 import os
 import pytest
-from mistralai import Mistral
+
+try:
+    from mistralai import Mistral
+except ImportError:  # pragma: no cover - SDK layout varies by version
+    try:
+        from mistralai.client import Mistral  # type: ignore
+    except ImportError:
+        Mistral = None  # type: ignore
+
 import openlit
 
-# Initialize synchronous Mistral client
-client = Mistral(
-    api_key=os.getenv("MISTRAL_API_KEY"),
+pytestmark = pytest.mark.skipif(
+    Mistral is None or not os.getenv("MISTRAL_API_KEY"),
+    reason="mistralai client or MISTRAL_API_KEY not available",
 )
+
+if Mistral is not None:
+    # Initialize synchronous Mistral client
+    client = Mistral(
+        api_key=os.getenv("MISTRAL_API_KEY"),
+    )
+else:
+    client = None  # type: ignore
 
 # Initialize environment and application name for OpenLIT monitoring
 openlit.init(

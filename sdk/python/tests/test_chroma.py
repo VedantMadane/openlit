@@ -59,5 +59,8 @@ def test_db_chroma():
     assert db_query["ids"] == [["id1", "id2"]]
 
     # Delete a document from the collection
+    # Older ChromaDB returned None; newer versions return delete metadata e.g. {"deleted": 1}
     db_delete = collection.delete(ids=["id2"], where={"source": "my_source"})
-    assert db_delete is None
+    assert db_delete is None or (
+        isinstance(db_delete, dict) and "deleted" in db_delete
+    )

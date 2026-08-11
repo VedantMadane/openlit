@@ -12,7 +12,7 @@ It includes upstream OpenTelemetry instrumentations for HTTP frameworks, clients
 
 - **Zero Code AI Observability** - Enable production-ready LLM monitoring for your AI applications **without any code changes**.
 
-- **OpenTelemetry Native** - Built on OpenTelemetry standards for seamless integration with existing observability stacks like Grafana, Datadog, and New Relic.
+- **OpenTelemetry Native** - Built on OpenTelemetry standards for seamless integration with existing observability stacks like Grafana, Datadog, New Relic, and Dash0.
 
 - **Drop-in Replacement** - Simply replace `opentelemetry-instrument` with `openlit-instrument` to get the same functionality plus comprehensive AI capabilities.
 
@@ -46,12 +46,15 @@ The OpenLIT SDK automatically instruments:
 
 ## Supported languages
 
-<CardGroup cols={2}>
-  <Card title="Python" icon="python">    
+<CardGroup cols={3}>
+  <Card title="Python" icon="python">
     Complete AI observability with automatic dependency detection. Zero-code instrumentation for production Python LLM applications with real-time performance monitoring.
   </Card>
-  <Card title="TypeScript/JavaScript" icon="node-js">    
+  <Card title="TypeScript/JavaScript" icon="node-js">
     Full LLM monitoring support for TypeScript / JavaScript applications with distributed tracing, metrics and cost optimization.
+  </Card>
+  <Card title="Go" icon="golang" href="/latest/sdk/go-overview">
+    OpenTelemetry-native instrumentation for Go applications. Wrap your OpenAI and Anthropic clients for automatic tracing, token tracking, and cost monitoring.
   </Card>
 </CardGroup>
 
@@ -93,7 +96,7 @@ Select from the following guides to learn more about production AI monitoring:
     Deployment options for scalable LLM monitoring infrastructure
   </Card>
   <Card title="Destinations" href="/latest/sdk/destinations/overview" icon='link'>
-    Send telemetry to Datadog, Grafana, New Relic, and other observability stacks
+    Send telemetry to Datadog, Grafana, New Relic, Dash0, and other observability stacks
   </Card>
 </CardGroup>
 <Card
